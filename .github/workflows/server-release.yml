@@ -1,0 +1,103 @@
+name: Release RustDesk Server Binaries
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish Release Assets
+    needs: [build, build-win]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true  # so we can commit back
+
+      # ── Download all the artifacts from your build jobs ───────────────
+      - name: Download Linux amd64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-linux-amd64
+          path: artifacts/linux-amd64
+
+      - name: Download Linux arm64v8 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-linux-arm64v8
+          path: artifacts/linux-arm64v8
+
+      - name: Download Linux armv7 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-linux-armv7
+          path: artifacts/linux-armv7
+
+      - name: Download Linux i386 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-linux-i386
+          path: artifacts/linux-i386
+
+      - name: Download Windows x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries-windows-x86_64
+          path: artifacts/windows-x86_64
+
+      # ── Create the GitHub Release ───────────────────────────────────────
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      # ── Upload each ZIP as a release asset ─────────────────────────────
+      - name: Upload server binaries
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: |
+            artifacts/linux-amd64/*.zip
+            artifacts/linux-arm64v8/*.zip
+            artifacts/linux-armv7/*.zip
+            artifacts/linux-i386/*.zip
+            artifacts/windows-x86_64/*.zip
+          asset_name: |
+            rustdesk-server-linux-amd64.zip
+            rustdesk-server-linux-arm64v8.zip
+            rustdesk-server-linux-armv7.zip
+            rustdesk-server-linux-i386.zip
+            rustdesk-server-windows-x86_64.zip
+          asset_content_type: application/zip
+
+      # ── Generate a handy DOWNLOADS.md with direct links ────────────────
+      - name: Generate DOWNLOADS.md
+        run: |
+          cat > DOWNLOADS.md <<EOF
+          # RustDesk Server ${{ github.ref_name }} Downloads
+
+          | Platform       | Link |
+          |----------------|------|
+          | Linux x86_64   | [Download](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustdesk-server-linux-amd64.zip) |
+          | Linux ARM64v8  | [Download](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustdesk-server-linux-arm64v8.zip) |
+          | Linux ARMv7    | [Download](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustdesk-server-linux-armv7.zip) |
+          | Linux i386     | [Download](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustdesk-server-linux-i386.zip) |
+          | Windows x86_64 | [Download](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/rustdesk-server-windows-x86_64.zip) |
+          EOF
+
+      - name: Commit DOWNLOADS.md
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: '📦 Update server DOWNLOADS.md for ${{ github.ref_name }}'
+          file_pattern: DOWNLOADS.md
